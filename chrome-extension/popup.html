@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub RAG Agent</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>GitHub RAG Agent</h1>
+      <div id="repo-info" class="repo-info hidden">
+        <span id="repo-name"></span>
+      </div>
+    </div>
+
+    <!-- Loading/Status Section -->
+    <div id="status-section" class="status-section">
+      <div id="not-github" class="message hidden">
+        <p>⚠️ Please navigate to a GitHub repository page to use this extension.</p>
+      </div>
+      
+      <div id="load-section" class="load-section hidden">
+        <p class="repo-url">Ready to load: <span id="detected-repo"></span></p>
+        <button id="load-repo-btn" class="btn-primary">Load Repository</button>
+        <div id="loading-indicator" class="loading hidden">
+          <div class="spinner"></div>
+          <p>Loading repository... This may take a few minutes.</p>
+        </div>
+        <div id="load-error" class="error hidden"></div>
+      </div>
+
+      <div id="loaded-section" class="loaded-section hidden">
+        <p class="success">✓ Repository loaded successfully!</p>
+      </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chat-section" class="chat-section hidden">
+      <div class="chat-messages" id="chat-messages">
+        <div class="welcome-message">
+          <p>👋 Hi! I'm your GitHub RAG Agent. Ask me anything about this repository!</p>
+        </div>
+      </div>
+      
+      <div class="chat-input-container">
+        <textarea 
+          id="chat-input" 
+          class="chat-input" 
+          placeholder="Ask a question about the code..."
+          rows="3"
+        ></textarea>
+        <button id="send-btn" class="btn-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
