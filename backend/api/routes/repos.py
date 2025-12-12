@@ -61,10 +61,10 @@ async def ingest_repository(
 
         # Run the bootstrap script with the repo URL
         result = subprocess.run(
-            ["python", "/app/backend/ingestion/bootstrap.py", request.repo_url],
+            ["python", "/app/ingestion/bootstrap.py", request.repo_url],
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=600  # 10 minute timeout for large repos
         )
 
         if result.returncode != 0:

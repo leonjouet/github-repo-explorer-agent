@@ -233,9 +233,9 @@ Content-Type: application/json
 ## TODOs
 
 - [ ] Support for more languages (JavaScript, Java)
+- [ ] New feature: dynamically load in context the content of the page so as the user does not have to precise on which file he is asking questions
 - [ ] Chat history
-- [ ] Authentication & multi-user support
-
+- [ ] Optional: Authentication & multi-user support
 ---
 
 
