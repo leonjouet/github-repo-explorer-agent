@@ -19,11 +19,10 @@ from .retriever import VectorRetriever
 from .neo4j_client import Neo4jClient
 from .graph_query_tool import DynamicGraphQueryTool
 from .file_explorer import FileExplorer
+from .logging_config import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logging.getLogger("langgraph").setLevel(logging.DEBUG)
+
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -192,6 +191,39 @@ class GitHubAgent:
                 logger.exception("search_code tool error")
                 return f"Error in search_code: {str(e)}"
 
+        def graph_query(question: str) -> str:
+            """
+            Query the Neo4j graph database with a natural language question.
+
+            This tool automatically generates and executes the appropriate Cypher query.
+            Simply ask your question about the code structure, and the tool will find the answer.
+
+            Examples:
+            - "How many unique modules are imported in the repository?"
+            - "List all files that define classes"
+            - "Find all functions that are called more than once"
+            """
+            try:
+                logger.info(f"[TOOL FUNC] graph_query: {question[:100]}")
+                result = self.graph_query_tool.query_from_natural_language(question)
+
+                # Log the result
+                logger.info(f"\n[GRAPH QUERY OUTPUT]")
+                logger.info(f"Question: {question}")
+                logger.info(f"Result:")
+                max_log_chars = 30000
+                if len(result) > max_log_chars:
+                    logger.info(result[:max_log_chars])
+                    logger.info(f"\n... (truncated, total length: {len(result)} chars)")
+                else:
+                    logger.info(result)
+                logger.info("[END GRAPH QUERY OUTPUT]\n")
+
+                return result
+            except Exception as e:
+                logger.exception("graph_query tool error")
+                return f"Error querying graph: {str(e)}"
+
         def dynamic_cypher_query(cypher_query: str) -> str:
             """
             Execute a dynamic Cypher query against the Neo4j graph database.
@@ -231,7 +263,7 @@ class GitHubAgent:
             to help generate valid Cypher queries for dynamic_cypher_query tool.
             """
             try:
-                logger.debug(
+                logger.info(
                     "[TOOL FUNC] get_graph_schema: Retrieving schema description"
                 )
                 schema = self.graph_query_tool.get_schema_info()
@@ -273,21 +305,21 @@ class GitHubAgent:
                 result = ""
 
                 if action == "list_repos":
-                    logger.debug("[TOOL FUNC] file_explorer: list_repos")
+                    logger.info("[TOOL FUNC] file_explorer: list_repos")
                     result = self.file_explorer.list_repos()
 
                 elif action == "tree":
-                    logger.debug(f"[TOOL FUNC] file_explorer: tree for {repo_name}")
+                    logger.info(f"[TOOL FUNC] file_explorer: tree for {repo_name}")
                     result = self.file_explorer.tree_structure(repo_name, max_depth)
 
                 elif action == "read_file":
-                    logger.debug(
+                    logger.info(
                         f"[TOOL FUNC] file_explorer: read_file {repo_name}/{file_path}"
                     )
                     result = self.file_explorer.read_file(repo_name, file_path)
 
                 elif action == "search_files":
-                    logger.debug(
+                    logger.info(
                         f"[TOOL FUNC] file_explorer: search_files in {repo_name}"
                     )
                     result = self.file_explorer.search_files(
@@ -295,7 +327,7 @@ class GitHubAgent:
                     )
 
                 elif action == "list_directory":
-                    logger.debug(
+                    logger.info(
                         f"[TOOL FUNC] file_explorer: list_directory {repo_name}/{file_path}"
                     )
                     result = self.file_explorer.list_directory(repo_name, file_path)
@@ -327,6 +359,14 @@ class GitHubAgent:
             return_direct=False,
         )
 
+        graph_query_tool = Tool.from_function(
+            name="graph_query",
+            description="Query the Neo4j graph database using natural language. This tool automatically generates and executes the Cypher query. Use this for structural analysis like counting entities, finding relationships, or analyzing code dependencies.",
+            func=graph_query,
+            args_schema=SearchCodeArgs,  # Reuse since it just takes a query string
+            return_direct=False,
+        )
+
         dynamic_cypher_tool = Tool.from_function(
             name="dynamic_cypher_query",
             description="Execute a dynamic Cypher query against the Neo4j graph database. Use get_graph_schema tool first to understand the graph structure.",
@@ -335,18 +375,16 @@ class GitHubAgent:
             return_direct=False,
         )
 
-        get_schema_tool = Tool.from_function(
+        get_schema_tool = StructuredTool.from_function(
             name="get_graph_schema",
             description="Get the Neo4j graph database schema including node types, properties, and relationships. Use this before dynamic_cypher_query.",
             func=get_graph_schema,
-            return_direct=False,
         )
 
-        list_repos_tool = Tool.from_function(
+        list_repos_tool = StructuredTool.from_function(
             name="list_graph_repositories",
             description="List all repositories available in the Neo4j graph database with their statistics.",
             func=list_graph_repositories,
-            return_direct=False,
         )
 
         file_explorer_tool = StructuredTool.from_function(
@@ -357,10 +395,8 @@ class GitHubAgent:
         )
 
         return [
+            graph_query_tool,
             search_code_tool,
-            dynamic_cypher_tool,
-            get_schema_tool,
-            list_repos_tool,
             file_explorer_tool,
         ]
 
@@ -370,14 +406,20 @@ class GitHubAgent:
         This agent can loop LLM <-> tools multiple times until a final answer.
         """
         self.system_prompt = (
-            "You are a GitHub code analysis assistant. "
-            "You have tools to search a codebase via RAG, execute dynamic Cypher queries against a Neo4j graph database, "
-            "and explore repository file systems. "
-            "\n\nWhen answering questions about code structure or relationships, use the dynamic_cypher_query tool with queries "
-            "that you generate based on the graph schema (get the schema with get_graph_schema tool first). "
-            "For file exploration and reading, use the file_explorer tool. "
-            "For semantic code search, use search_code. "
-            "\n\nBe concise and focus on what is most relevant for understanding the repository."
+            "You are a GitHub code analysis assistant with access to specialized tools. "
+            "\n\nYou have THREE tools available:"
+            "\n1. graph_query - Queries the code knowledge graph using natural language"
+            "\n2. file_explorer - Explores repository files and directory structures"
+            "\n3. search_code - Semantic search across codebase"
+            "\n\nWORKFLOW:"
+            "\n- For ANY question about code structure, statistics, or relationships: Use graph_query"
+            "\n- For file content, directory exploration: Use file_explorer"
+            "\n- For finding code by meaning/intent: Use search_code"
+            "\n\nIMPORTANT:"
+            "\n- ALWAYS use the appropriate tool to answer the question"
+            "\n- Use the tool results as the basis for your answer"
+            "\n- Synthesize tool outputs into clear, concise responses"
+            "\n- NEVER generate or output Cypher queries, code, or raw SQL - only processed results"
         )
 
         # Add debug callback to LLM for detailed logging

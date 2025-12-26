@@ -7,6 +7,7 @@ Allows the LLM to dynamically query the knowledge graph without hardcoded querie
 import logging
 from typing import Dict, Any, List
 import re
+import os
 
 from .neo4j_client import Neo4jClient
 
@@ -73,12 +74,88 @@ Return only the Cypher query without any markdown formatting or code blocks.
 
     def __init__(self, neo4j_client: Neo4jClient):
         """
-        Initialize the dynamic query tool.
+        Initialize the dynamic query tool with optional LLM for query generation.
 
         Args:
             neo4j_client: Neo4jClient instance for executing queries
         """
         self.neo4j = neo4j_client
+
+        # Initialize LLM for query generation
+        try:
+            from langchain_openai import ChatOpenAI
+
+            self.llm = ChatOpenAI(
+                model="gpt-4.1",
+                temperature=0,
+                api_key=os.environ.get("OPENAI_API_KEY"),
+                base_url=os.environ.get("OPENAI_API_BASE_URL"),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM for query generation: {e}")
+            self.llm = None
+
+    # Query are generated in the tool itself to guarantee execution
+    # Otherwise the agent may generate queries and return queries that are not executed
+    def query_from_natural_language(
+        self, natural_language_question: str, max_results: int = 100
+    ) -> str:
+        """
+        High-level method: Takes a natural language question and returns results.
+        This GUARANTEES execution because it generates the query internally.
+
+        Args:
+            natural_language_question: Natural language question about the codebase
+            max_results: Maximum number of results to return
+
+        Returns:
+            Query results formatted as a string
+        """
+        if not self.llm:
+            return "Error: LLM not initialized. Cannot generate Cypher queries."
+
+        try:
+            logger.info(
+                f"[GRAPH TOOL] Generating Cypher query from: {natural_language_question[:100]}"
+            )
+
+            # Step 1: Generate Cypher query using LLM
+            schema = self.get_schema_info()
+            prompt = f"""You are a Neo4j Cypher query expert. Based on the schema provided, generate a valid Cypher query to answer the user's question.
+            SCHEMA:
+            {schema}
+
+            USER QUESTION: {natural_language_question}
+
+            INSTRUCTIONS:
+            - Generate ONLY a valid Cypher query
+            - Do NOT include explanations, markdown formatting, or code blocks
+            - Ensure the query is syntactically correct Neo4j Cypher
+            - Return the raw query only
+
+            Cypher query:"""
+
+            query_response = self.llm.invoke(prompt)
+            cypher_query = query_response.content.strip()
+
+            # Clean the query
+            cypher_query = self._clean_query(cypher_query)
+            logger.info(f"[GRAPH TOOL] Generated query: {cypher_query[:200]}")
+
+            # Step 2: Execute the query
+            results = self.execute_query(cypher_query, max_results)
+            logger.info(
+                f"[GRAPH TOOL] Query execution complete. Result length: {len(results)}"
+            )
+
+            return results
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.exception(
+                f"[GRAPH TOOL] Error in query_from_natural_language: {error_msg}"
+            )
+            return f"Error generating and executing query: {error_msg}"
 
     def get_schema_info(self) -> str:
         """

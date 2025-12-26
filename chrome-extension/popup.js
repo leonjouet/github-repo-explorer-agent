@@ -227,11 +227,36 @@ async function sendMessage() {
   }
 }
 
-// Simple markdown parser
+// Parse markdown to HTML
 function parseMarkdown(text) {
   if (!text) return '';
   
+  // Use marked library if available
+  if (typeof marked !== 'undefined') {
+    try {
+      // Configure marked to break on line breaks
+      marked.setOptions({
+        breaks: true,
+        gfm: true
+      });
+      return marked.parse(text);
+    } catch (e) {
+      console.error('Error parsing markdown with marked:', e);
+      return fallbackMarkdownParser(text);
+    }
+  }
+  
+  return fallbackMarkdownParser(text);
+}
+
+// Fallback markdown parser
+function fallbackMarkdownParser(text) {
   let html = text;
+  
+  // Headers (must be before other replacements)
+  html = html.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
   
   // Code blocks (triple backticks)
   html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
@@ -239,30 +264,51 @@ function parseMarkdown(text) {
   // Inline code (single backticks)
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
   
-  // Headers
-  html = html.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+  // Links (before bold/italic)
+  html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
   
   // Bold
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
   
   // Italic
-  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
   
-  // Links
-  html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+  // Numbered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>[\s\S]*?<\/li>)/g, function(match) {
+    return '<ol>' + match + '</ol>';
+  });
   
-  // Line breaks to <br>
-  html = html.replace(/\n\n/g, '</p><p>');
-  html = '<p>' + html + '</p>';
+  // Unordered lists (- or *)
+  html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
   
-  // Clean up multiple p tags
+  // Wrap multiple list items in proper tags
+  html = html.replace(/(<li>[\s\S]*?<\/li>)/g, function(match) {
+    if (!match.includes('<ol>') && !match.includes('<ul>')) {
+      return '<ul>' + match + '</ul>';
+    }
+    return match;
+  });
+  
+  // Paragraph wrapping (avoid wrapping block elements)
+  html = html.split('\n').map(line => {
+    line = line.trim();
+    if (line && !line.startsWith('<') && !line.includes('</')) {
+      return '<p>' + line + '</p>';
+    }
+    return line;
+  }).join('\n');
+  
+  // Clean up
   html = html.replace(/<p><\/p>/g, '');
   html = html.replace(/<p>(<h[1-6]>)/g, '$1');
   html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
   html = html.replace(/<p>(<pre>)/g, '$1');
   html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<[ou]l>)/g, '$1');
+  html = html.replace(/(<\/[ou]l>)<\/p>/g, '$1');
   
   return html;
 }
