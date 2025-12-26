@@ -78,10 +78,10 @@ This will start:
 
 ### 3. Bootstrap the System
 
-In a new terminal:
+In a new terminal, load the repo(s) you want:
 
 ```bash
-docker exec -it github-rag-backend python backend/ingestion/bootstrap.py
+docker exec -it [backend_container_ID] python ingestion/bootstrap.py https://github.com/karpathy/nanochat
 ```
 
 ### 4. Start Asking Questions!
@@ -171,65 +171,7 @@ npm install
 npm start
 ```
 
-
-## API Endpoints
-
-### Health Check
-```bash
-GET /health
-```
-### List Repositories
-```bash
-GET /repos
-```
-### Get Repository Details
-```bash
-GET /repos/{repo_name}
-```
-### Ingest Repository (NEW)
-```bash
-POST /repos/ingest
-Content-Type: application/json
-
-{
-  "repo_url": "https://github.com/owner/repo"
-}
-```
-
-### Query Agent
-```bash
-POST /query
-Content-Type: application/json
-
-{
-  "question": "How does authentication work?",
-  "repo": "flask",  // optional
-  "chat_history": []  // optional
-}
-```
-
-### Graph Schema
-```bash
-GET /graph/schema
-```
-
-### Graph Statistics
-```bash
-GET /graph/stats
-```
-
-### Execute Cypher Query
-```bash
-POST /graph/query
-Content-Type: application/json
-
-{
-  "query": "MATCH (r:Repository) RETURN r.name LIMIT 5"
-}
-```
-
----
-
+----
 ## TODOs
 
 - [ ] Support for more languages (JavaScript, Java)

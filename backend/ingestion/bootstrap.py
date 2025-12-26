@@ -10,7 +10,7 @@ import json
 import logging
 
 # Add /app to path (for Docker container environment)
-sys.path.insert(0, '/app')
+sys.path.insert(0, "/app")
 
 from ingest import RepoIngester
 from core.retriever import VectorRetriever
@@ -25,13 +25,9 @@ def main():
     """Run complete bootstrap pipeline."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(
-        description='Bootstrap GitHub RAG Agent with repositories'
+        description="Bootstrap GitHub RAG Agent with repositories"
     )
-    parser.add_argument(
-        'repos',
-        nargs='*',
-        help='GitHub repository URLs to ingest'
-    )
+    parser.add_argument("repos", nargs="*", help="GitHub repository URLs to ingest")
     args = parser.parse_args()
     logger.info("GitHub RAG Agent - Bootstrap Pipeline")
 
@@ -49,7 +45,7 @@ def main():
 
     ingester = RepoIngester(data_dir="/app/data")
     results = ingester.ingest_repos(repos)
-    logger.info(f"✓ Ingested {len(results)} repositories")
+    logger.info(f"Ingested {len(results)} repositories")
 
     # Step 2: Build vector index
     logger.info("\n[2/3] Building vector index...")
@@ -57,7 +53,7 @@ def main():
 
     for metadata_file in os.listdir("/app/data/metadata"):
         if metadata_file.endswith(".json"):
-            with open(f"/app/data/metadata/{metadata_file}", 'r') as f:
+            with open(f"/app/data/metadata/{metadata_file}", "r") as f:
                 metadata = json.load(f)
             retriever.add_repo_to_index(metadata)
 
@@ -71,6 +67,7 @@ def main():
     neo4j.close()
     logger.info("Graph loaded")
     logger.info("Repositories loaded successfully")
+
 
 if __name__ == "__main__":
     main()
