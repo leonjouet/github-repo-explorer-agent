@@ -227,10 +227,59 @@ async function sendMessage() {
   }
 }
 
+// Simple markdown parser
+function parseMarkdown(text) {
+  if (!text) return '';
+  
+  let html = text;
+  
+  // Code blocks (triple backticks)
+  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  
+  // Inline code (single backticks)
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
+  // Headers
+  html = html.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+  
+  // Bold
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Italic
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  
+  // Links
+  html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+  
+  // Line breaks to <br>
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = '<p>' + html + '</p>';
+  
+  // Clean up multiple p tags
+  html = html.replace(/<p><\/p>/g, '');
+  html = html.replace(/<p>(<h[1-6]>)/g, '$1');
+  html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<pre>)/g, '$1');
+  html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+  
+  return html;
+}
+
 function addMessageToChat(text, role) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message-${role}`;
-  messageDiv.textContent = text;
+  
+  if (role === 'assistant') {
+    // Parse markdown for assistant messages
+    const html = parseMarkdown(text);
+    messageDiv.innerHTML = html;
+  } else {
+    // Keep user messages as plain text
+    messageDiv.textContent = text;
+  }
+  
   chatMessages.appendChild(messageDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }

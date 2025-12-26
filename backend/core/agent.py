@@ -6,10 +6,9 @@ Orchestrates retrieval and reasoning over GitHub repositories.
 from typing import Any, Dict, List, Optional
 import os
 import logging
-import json
 from datetime import datetime
 
-from langchain_core.tools import Tool
+from langchain_core.tools import Tool, StructuredTool
 from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage
@@ -18,10 +17,11 @@ from langgraph.prebuilt import create_react_agent
 
 from .retriever import VectorRetriever
 from .neo4j_client import Neo4jClient
+from .graph_query_tool import DynamicGraphQueryTool
+from .file_explorer import FileExplorer
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logging.getLogger("langgraph").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 class AgentDebugCallbackHandler(BaseCallbackHandler):
     """Callback handler for logging LLM and tool interactions."""
 
-    def on_llm_start(self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any) -> None:
+    def on_llm_start(
+        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
+    ) -> None:
         """Log when LLM is called."""
         logger.info("=" * 80)
         logger.info(f"[LLM CALL] {datetime.now().isoformat()}")
@@ -44,15 +46,18 @@ class AgentDebugCallbackHandler(BaseCallbackHandler):
         """Log when LLM returns a response."""
         logger.info("[LLM RESPONSE]")
         try:
-            if hasattr(response, 'generations'):
+            if hasattr(response, "generations"):
                 for i, gen_list in enumerate(response.generations, 1):
                     for j, gen in enumerate(gen_list, 1):
-                        content = gen.text if hasattr(gen, 'text') else str(gen)
+                        content = gen.text if hasattr(gen, "text") else str(gen)
                         logger.info(f"--- Generation {i}.{j} ---")
                         # Use larger truncation for better readability
                         max_chars = 1000
                         if len(content) > max_chars:
-                            logger.info(content[:max_chars] + f"\n... (truncated, total length: {len(content)} chars)")
+                            logger.info(
+                                content[:max_chars]
+                                + f"\n... (truncated, total length: {len(content)} chars)"
+                            )
                         else:
                             logger.info(content)
         except Exception as e:
@@ -63,21 +68,26 @@ class AgentDebugCallbackHandler(BaseCallbackHandler):
         """Log LLM errors."""
         logger.error(f"[LLM ERROR] {str(error)}")
 
-    def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
+    def on_tool_start(
+        self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
+    ) -> None:
         """Log when a tool is called."""
         logger.info("+" * 80)
         logger.info(f"[TOOL CALL] {datetime.now().isoformat()}")
         logger.info(f"Tool: {serialized.get('name', 'unknown')}")
         logger.info(f"Description: {serialized.get('description', 'N/A')}")
-        logger.info(f"Input: {input_str[:500] + ('...' if len(input_str) > 500 else '')}")
+        logger.info(
+            f"Input: {input_str[:500] + ('...' if len(input_str) > 500 else '')}"
+        )
 
     def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Log tool results."""
         logger.info("[TOOL RESULT]")
-        # Use larger truncation for readability
-        max_chars = 5000
+        # Use larger truncation for readability (20KB limit)
+        max_chars = 20000
         if len(output) > max_chars:
-            logger.info(output[:max_chars] + f"\n... (truncated, total length: {len(output)} chars)")
+            logger.info(output[:max_chars])
+            logger.info(f"... (truncated, total length: {len(output)} chars)")
         else:
             logger.info(output)
         logger.info("+" * 80)
@@ -92,13 +102,32 @@ class SearchCodeArgs(BaseModel):
     query: str = Field(..., description="Search query for the code index")
 
 
-class GetRepoInfoArgs(BaseModel):
-    repo_name: str = Field(..., description="Name of the repository")
+class DynamicCypherQueryArgs(BaseModel):
+    cypher_query: str = Field(
+        ...,
+        description="Cypher query to execute against the Neo4j database. Use the schema provided to generate valid queries.",
+    )
 
 
-class FindFunctionCallsArgs(BaseModel):
-    function_name: str = Field(
-        ..., description="Name of the function to inspect callers for"
+class FileExplorerArgs(BaseModel):
+    action: str = Field(
+        ...,
+        description="Action to perform: 'list_repos', 'tree', 'read_file', 'search_files', 'list_directory'",
+    )
+    repo_name: str = Field(
+        "",
+        description="Name of the repository (required for all actions except 'list_repos')",
+    )
+    file_path: str = Field(
+        "",
+        description="Path to file or directory (required for 'read_file', 'search_files', 'list_directory')",
+    )
+    query: str = Field("", description="Search query (required for 'search_files')")
+    file_pattern: str = Field(
+        "*", description="File pattern for search (optional, defaults to '*')"
+    )
+    max_depth: int = Field(
+        3, description="Maximum depth for tree structure (optional, defaults to 3)"
     )
 
 
@@ -114,6 +143,8 @@ class GitHubAgent:
     ):
         self.retriever = retriever
         self.neo4j = neo4j_client
+        self.graph_query_tool = DynamicGraphQueryTool(neo4j_client)
+        self.file_explorer = FileExplorer()
 
         self.llm = ChatOpenAI(
             model=model,
@@ -125,10 +156,10 @@ class GitHubAgent:
         self.agent_app = self._create_agent()
 
     def _create_tools(self) -> List[Tool]:
-        """Create agent tools for RAG and graph operations."""
+        """Create agent tools for RAG, dynamic graph queries, and file exploration."""
 
         def search_code(query: str) -> str:
-            """Search for code snippets."""
+            """Search for code snippets in the vector database."""
             try:
                 logger.debug(f"[TOOL FUNC] search_code: query='{query}'")
                 results = self.retriever.query(query, k=3)
@@ -143,146 +174,194 @@ class GitHubAgent:
                     output += f"{result['text'][:200]}\n---\n"
 
                 logger.debug(f"[TOOL FUNC] search_code: Found {len(results)} results")
+
+                # Log the full result
+                logger.info(f"\n[SEARCH_CODE OUTPUT]")
+                logger.info(f"Query: {query}")
+                logger.info(f"Results:")
+                max_log_chars = 30000
+                if len(output) > max_log_chars:
+                    logger.info(output[:max_log_chars])
+                    logger.info(f"\n... (truncated, total length: {len(output)} chars)")
+                else:
+                    logger.info(output)
+                logger.info("[END SEARCH_CODE OUTPUT]\n")
+
                 return output
             except Exception as e:
                 logger.exception("search_code tool error")
                 return f"Error in search_code: {str(e)}"
 
-        def get_repo_info(repo_name: str) -> str:
-            """Get repository file structure."""
+        def dynamic_cypher_query(cypher_query: str) -> str:
+            """
+            Execute a dynamic Cypher query against the Neo4j graph database.
+
+            The Neo4j graph contains nodes for Repository, File, Function, Class, Module, and Commit,
+            with relationships for CONTAINS, DEFINES, CALLS, IMPORTS, and HAS_COMMIT.
+
+            Use this tool when you need to query the knowledge graph. Generate Cypher queries
+            based on the graph schema provided by the get_graph_schema tool.
+            """
             try:
-                logger.debug(f"[TOOL FUNC] get_repo_info: repo_name='{repo_name}'")
-                cypher = f"""
-                MATCH (r:Repository {{name: '{repo_name}'}})-[:CONTAINS]->(f:File)
-                RETURN f.path as file
-                """
-                records = self.neo4j.run(cypher)
+                logger.debug("[TOOL FUNC] dynamic_cypher_query: Executing")
+                result = self.graph_query_tool.execute_query(cypher_query)
 
-                if not records:
-                    logger.debug(f"[TOOL FUNC] get_repo_info: Repository '{repo_name}' not found")
-                    return f"Repository '{repo_name}' not found."
+                # Log the full result
+                logger.info(f"\n[CYPHER QUERY OUTPUT]")
+                logger.info(f"Query: {cypher_query}")
+                logger.info(f"Result:")
+                max_log_chars = 30000
+                if len(result) > max_log_chars:
+                    logger.info(result[:max_log_chars])
+                    logger.info(f"\n... (truncated, total length: {len(result)} chars)")
+                else:
+                    logger.info(result)
+                logger.info("[END CYPHER QUERY OUTPUT]\n")
 
-                files = [r["file"] for r in records]
-                logger.debug(f"[TOOL FUNC] get_repo_info: Found {len(files)} files")
-                return f"Files in {repo_name}:\n" + "\n".join(files)
+                return result
             except Exception as e:
-                logger.exception("get_repo_info tool error")
-                return f"Error in get_repo_info: {str(e)}"
+                logger.exception("dynamic_cypher_query tool error")
+                return f"Error executing query: {str(e)}"
 
-        def find_functions(repo_name: str) -> str:
-            """Find functions defined in a repository."""
+        def get_graph_schema() -> str:
+            """
+            Get the Neo4j graph database schema and structure.
+
+            Returns a detailed description of nodes, relationships, and properties
+            to help generate valid Cypher queries for dynamic_cypher_query tool.
+            """
             try:
-                logger.debug(f"[TOOL FUNC] find_functions: repo_name='{repo_name}'")
-                cypher = f"""
-                MATCH (r:Repository {{name: '{repo_name}'}})-[:CONTAINS]->(f:File)
-                MATCH (f)-[:DEFINES]->(func:Function)
-                RETURN f.path as file, func.name as function
-                """
-                records = self.neo4j.run(cypher)
-
-                if not records:
-                    logger.debug(f"[TOOL FUNC] find_functions: No functions found in '{repo_name}'")
-                    return f"No functions found in '{repo_name}'."
-
-                output = f"Functions in {repo_name}:\n"
-                for r in records:
-                    output += f"  - {r['function']} in {r['file']}\n"
-                logger.debug(f"[TOOL FUNC] find_functions: Found {len(records)} functions")
-                return output
+                logger.debug(
+                    "[TOOL FUNC] get_graph_schema: Retrieving schema description"
+                )
+                schema = self.graph_query_tool.get_schema_info()
+                logger.debug("[TOOL FUNC] get_graph_schema: Schema retrieved")
+                return schema
             except Exception as e:
-                logger.exception("find_functions tool error")
-                return f"Error in find_functions: {str(e)}"
+                logger.exception("get_graph_schema tool error")
+                return f"Error retrieving schema: {str(e)}"
 
-        def find_function_calls(function_name: str) -> str:
-            """Find what functions call a specific function."""
+        def list_graph_repositories() -> str:
+            """List all repositories available in the Neo4j graph database."""
             try:
-                logger.debug(f"[TOOL FUNC] find_function_calls: function_name='{function_name}'")
-                cypher = f"""
-                MATCH (caller:Function)-[:CALLS]->(callee:Function {{name: '{function_name}'}})
-                RETURN caller.name as caller, callee.name as callee
-                """
-                records = self.neo4j.run(cypher)
-
-                if not records:
-                    logger.debug(f"[TOOL FUNC] find_function_calls: No calls to '{function_name}' found")
-                    return f"No calls to function '{function_name}' found."
-
-                output = f"Functions calling '{function_name}':\n"
-                for r in records:
-                    output += f"  - {r['caller']}\n"
-                logger.debug(f"[TOOL FUNC] find_function_calls: Found {len(records)} callers")
-                return output
+                logger.debug(
+                    "[TOOL FUNC] list_graph_repositories: Listing repositories"
+                )
+                return self.graph_query_tool.list_repositories()
             except Exception as e:
-                logger.exception("find_function_calls tool error")
-                return f"Error in find_function_calls: {str(e)}"
+                logger.exception("list_graph_repositories tool error")
+                return f"Error listing repositories: {str(e)}"
 
-        def find_dependencies(repo_name: str) -> str:
-            """Find import dependencies for a repository."""
+        def file_explorer(
+            action: str,
+            repo_name: str = "",
+            file_path: str = "",
+            query: str = "",
+            file_pattern: str = "*",
+            max_depth: int = 3,
+        ) -> str:
+            """
+            Explore repository file systems. Supports multiple actions:
+            - 'list_repos': List all available repositories
+            - 'tree': Get directory tree structure of a repository
+            - 'read_file': Read contents of a file
+            - 'search_files': Search for files by name or pattern
+            - 'list_directory': List files in a specific directory
+            """
             try:
-                logger.debug(f"[TOOL FUNC] find_dependencies: repo_name='{repo_name}'")
-                cypher = f"""
-                MATCH (r:Repository {{name: '{repo_name}'}})-[:CONTAINS]->(f:File)
-                MATCH (f)-[:IMPORTS]->(dep)
-                RETURN DISTINCT dep.name as dependency, count(f) as usage_count
-                ORDER BY usage_count DESC
-                """
-                records = self.neo4j.run(cypher)
+                action = action.lower().strip()
+                result = ""
 
-                if not records:
-                    logger.debug(f"[TOOL FUNC] find_dependencies: No dependencies found for '{repo_name}'")
-                    return f"No dependencies found for '{repo_name}'."
+                if action == "list_repos":
+                    logger.debug("[TOOL FUNC] file_explorer: list_repos")
+                    result = self.file_explorer.list_repos()
 
-                output = f"Dependencies in {repo_name}:\n"
-                for r in records:
-                    output += f"  - {r['dependency']} (used {r['usage_count']} times)\n"
-                logger.debug(f"[TOOL FUNC] find_dependencies: Found {len(records)} dependencies")
-                return output
+                elif action == "tree":
+                    logger.debug(f"[TOOL FUNC] file_explorer: tree for {repo_name}")
+                    result = self.file_explorer.tree_structure(repo_name, max_depth)
+
+                elif action == "read_file":
+                    logger.debug(
+                        f"[TOOL FUNC] file_explorer: read_file {repo_name}/{file_path}"
+                    )
+                    result = self.file_explorer.read_file(repo_name, file_path)
+
+                elif action == "search_files":
+                    logger.debug(
+                        f"[TOOL FUNC] file_explorer: search_files in {repo_name}"
+                    )
+                    result = self.file_explorer.search_files(
+                        repo_name, query, file_pattern
+                    )
+
+                elif action == "list_directory":
+                    logger.debug(
+                        f"[TOOL FUNC] file_explorer: list_directory {repo_name}/{file_path}"
+                    )
+                    result = self.file_explorer.list_directory(repo_name, file_path)
+
+                else:
+                    result = f"Unknown action: {action}. Valid actions are: list_repos, tree, read_file, search_files, list_directory"
+
+                # Log the full result
+                logger.info(f"\n[FILE_EXPLORER OUTPUT - Action: {action}]")
+                max_log_chars = 30000
+                if len(result) > max_log_chars:
+                    logger.info(result[:max_log_chars])
+                    logger.info(f"\n... (truncated, total length: {len(result)} chars)")
+                else:
+                    logger.info(result)
+                logger.info("[END FILE_EXPLORER OUTPUT]\n")
+
+                return result
             except Exception as e:
-                logger.exception("find_dependencies tool error")
-                return f"Error in find_dependencies: {str(e)}"
+                logger.exception("file_explorer tool error")
+                return f"Error in file_explorer: {str(e)}"
 
+        # Create Tool objects
         search_code_tool = Tool.from_function(
             name="search_code",
-            description="Search for code snippets in the vector database.",
+            description="Search for code snippets in the vector database by semantic similarity.",
             func=search_code,
             args_schema=SearchCodeArgs,
             return_direct=False,
         )
-        get_repo_info_tool = Tool.from_function(
-            name="get_repo_info",
-            description="Get repository file structure.",
-            func=get_repo_info,
-            args_schema=GetRepoInfoArgs,
+
+        dynamic_cypher_tool = Tool.from_function(
+            name="dynamic_cypher_query",
+            description="Execute a dynamic Cypher query against the Neo4j graph database. Use get_graph_schema tool first to understand the graph structure.",
+            func=dynamic_cypher_query,
+            args_schema=DynamicCypherQueryArgs,
             return_direct=False,
         )
-        find_functions_tool = Tool.from_function(
-            name="find_functions",
-            description="Find functions defined in a repository.",
-            func=find_functions,
-            args_schema=GetRepoInfoArgs,
+
+        get_schema_tool = Tool.from_function(
+            name="get_graph_schema",
+            description="Get the Neo4j graph database schema including node types, properties, and relationships. Use this before dynamic_cypher_query.",
+            func=get_graph_schema,
             return_direct=False,
         )
-        find_function_calls_tool = Tool.from_function(
-            name="find_function_calls",
-            description="Find functions that call a specific function.",
-            func=find_function_calls,
-            args_schema=FindFunctionCallsArgs,
+
+        list_repos_tool = Tool.from_function(
+            name="list_graph_repositories",
+            description="List all repositories available in the Neo4j graph database with their statistics.",
+            func=list_graph_repositories,
             return_direct=False,
         )
-        find_dependencies_tool = Tool.from_function(
-            name="find_dependencies",
-            description="Find import dependencies for a repository.",
-            func=find_dependencies,
-            args_schema=GetRepoInfoArgs,
-            return_direct=False,
+
+        file_explorer_tool = StructuredTool.from_function(
+            name="file_explorer",
+            description="Explore repository file systems. Can list repositories, show directory trees, read files, search for files, or list directory contents.",
+            func=file_explorer,
+            args_schema=FileExplorerArgs,
         )
 
         return [
             search_code_tool,
-            get_repo_info_tool,
-            find_functions_tool,
-            find_function_calls_tool,
-            find_dependencies_tool,
+            dynamic_cypher_tool,
+            get_schema_tool,
+            list_repos_tool,
+            file_explorer_tool,
         ]
 
     def _create_agent(self):
@@ -292,10 +371,13 @@ class GitHubAgent:
         """
         self.system_prompt = (
             "You are a GitHub code analysis assistant. "
-            "You have tools to search a codebase via RAG and explore a Neo4j graph. "
-            "Use the tools when they help you answer the user's question. "
-            "If no tool is necessary, answer directly. "
-            "Be concise and focus on what is most relevant for understanding the repository."
+            "You have tools to search a codebase via RAG, execute dynamic Cypher queries against a Neo4j graph database, "
+            "and explore repository file systems. "
+            "\n\nWhen answering questions about code structure or relationships, use the dynamic_cypher_query tool with queries "
+            "that you generate based on the graph schema (get the schema with get_graph_schema tool first). "
+            "For file exploration and reading, use the file_explorer tool. "
+            "For semantic code search, use search_code. "
+            "\n\nBe concise and focus on what is most relevant for understanding the repository."
         )
 
         # Add debug callback to LLM for detailed logging
@@ -361,7 +443,9 @@ class GitHubAgent:
             final_msg = result_state["messages"][-1]
             answer = getattr(final_msg, "content", final_msg)
 
-            logger.info(f"[AGENT RESPONSE] Generated answer (length: {len(str(answer))} chars)")
+            logger.info(
+                f"[AGENT RESPONSE] Generated answer (length: {len(str(answer))} chars)"
+            )
             logger.info(f"[AGENT QUERY] Completed at {datetime.now().isoformat()}")
             logger.info("=" * 100)
 

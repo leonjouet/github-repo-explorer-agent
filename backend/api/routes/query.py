@@ -10,6 +10,7 @@ from core.neo4j_client import Neo4jClient
 router = APIRouter()
 _agent = None
 
+
 def get_agent():
     global _agent
     if _agent is None:
@@ -41,5 +42,5 @@ async def query(req: QueryRequest):
         "question": req.question,
         "answer": result["answer"],
         "success": result["success"],
-        "repo": req.repo
+        "repo": req.repo,
     }
