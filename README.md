@@ -1,183 +1,101 @@
 # GitHub RAG Agent
 
-A full-stack RAG (Retrieval-Augmented Generation) system for answering questions about python public GitHub repositories using:
+An AI-powered system for exploring and asking questions about Python GitHub repositories. Ask natural language questions and get answers based on the repository's code, structure, and relationships.
 
-- **Vector Search**: Semantic code retrieval with OpenAI embeddings + ChromaDB
-- **Graph Database**: Structural code relationships in Neo4j
-- **LangChain Agents**: Orchestrated reasoning with GPT-4
-- **React Frontend**: Chat interface
-- **Chrome exension**: Chrome extension to use it directly on GitHub
-- **Docker**: Fully containerized deployment
+## Features
 
-![Architecture](https://img.shields.io/badge/FastAPI-Backend-009688)
-![React](https://img.shields.io/badge/React-Frontend-61DAFB)
-![Neo4j](https://img.shields.io/badge/Neo4j-Graph-008CC1)
-![LangChain](https://img.shields.io/badge/LangChain-Agents-121212)
-![LangGraph](https://img.shields.io/badge/LangGraph-Agents-121212)
+- **Semantic Code Search**: Find relevant code snippets using vector embeddings
+- **Code Relationships**: Understand how classes, functions, and modules relate to each other with a knowledge graph database
+- **Chat Interface**: Ask questions in natural language and get contextual answers
+- **Chrome Extension**: Use it directly while browsing GitHub repositories
+- **Docker Support**: One-command deployment
 
----
+## Repository Structure
 
-## Chrome Extension
+```
+github-rag-agent/
+├── backend/                     # FastAPI backend
+│   ├── api/
+│   │   ├── main.py             # FastAPI app
+│   │   └── routes/             # API endpoints
+│   ├── core/
+│   │   ├── agent.py            # LangChain agent
+│   │   ├── retriever.py        # Vector search
+│   │   ├── neo4j_client.py     # Graph database
+│   │   └── graph_loader.py     # Load repos to graph
+│   ├── ingestion/
+│   │   ├── ingest.py           # Repo parsing
+│   │   └── bootstrap.py        # Repo loading & setup
+│   └── requirements.txt
+├── frontend/                    # React web interface
+│   ├── src/
+│   │   ├── App.js
+│   │   └── index.js
+│   └── package.json
+├── chrome-extension/            # Chrome extension
+│   ├── manifest.json
+│   ├── popup.js
+│   └── content.js
+├── docker-compose.yml
+└── .env.example
+```
 
-You can use the GitHub RAG Agent directly on GitHub repository pages!
+## Installation
 
-### Features
-- **Auto-Detection**: Automatically detects when you're on a GitHub repo page
-- **One-Click Loading**: Load repositories into the RAG system with a single click
-- **Inline Chat**: Chat with the AI without leaving GitHub
+### Prerequisites
+- Docker & Docker Compose
+- OpenAI API Key
 
-### Installation
+### Chrome Extension (Recommended)
 
 1. **Start the backend**:
    ```bash
-   cd github-rag-agent && ./start.sh
+   cp .env.example .env
+   # Edit .env and add your OPENAI_API_KEY
+   ./start.sh
    ```
 
-2. **Load the extension**:
+2. **Load the extension in Chrome**:
    - Open Chrome and go to `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked"
    - Select the `chrome-extension/` folder
 
-3. **Use on GitHub**:
+3. **Use it on GitHub**:
    - Navigate to any GitHub repository
    - Click the extension icon
-   - Click "Load Repository"
-   - Start chatting
+   - The extension automatically loads the repo
+   - Start asking questions directly on the GitHub page
 
 See [chrome-extension/README.md](chrome-extension/README.md) for detailed instructions.
 
----
+### Web Interface (Alternative)
 
-## Quick Start
+1. **Start the stack**:
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your OPENAI_API_KEY
+   ./start.sh
+   ```
+   This starts:
+   - Backend API: http://localhost:8000
+   - Frontend: http://localhost:3000
+   - Neo4j: http://localhost:7474
 
-### Prerequisites
+2. **Manually load repositories** (optional):
+   ```bash
+   docker exec -it [backend_container_ID] python ingestion/bootstrap.py https://github.com/karpathy/nanochat
+   ```
 
-- Docker & Docker Compose
-- OpenAI API Key
-- Git
+3. **Open http://localhost:3000 and ask questions**
 
-### 1. Clone & Configure
-
-```bash
-cd /Users/Leon_Jouet/Documents/perso/python-projects/github-agent/github-rag-agent
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-```
-
-### 2. Start the Stack
-
-```bash
-cd github-rag-agent && ./start.sh
-```
-
-This will start:
-- **Backend API**: http://localhost:8000
-- **Frontend**: http://localhost:3000
-- **Neo4j Browser**: http://localhost:7474
-
-### 3. Bootstrap the System
-
-In a new terminal, load the repo(s) you want:
-
-```bash
-docker exec -it [backend_container_ID] python ingestion/bootstrap.py https://github.com/karpathy/nanochat
-```
-
-### 4. Start Asking Questions!
-
-Open http://localhost:3000 and ask questions like:
-- "What are the main classes in FastAPI?"
-- "What dependencies does LangChain use?"
-
----
-
-## Repository structure
-
-```
-github-rag-agent/
-├── backend/
-│   ├── api/
-│   │   ├── main.py              # FastAPI app
-│   │   └── routes/              # API endpoints
-│   │       ├── health.py
-│   │       ├── repos.py         # Repository listing & ingestion
-│   │       ├── query.py         # Q&A endpoint
-│   │       └── graph.py         # Graph queries
-│   ├── core/
-│   │   ├── agent.py             # LangChain agent
-│   │   ├── retriever.py         # Vector search
-│   │   ├── neo4j_client.py      # Neo4j connection
-│   │   ├── graph_loader.py      # Load repos to graph
-│   │   └── git_tools.py         # Git utilities
-│   ├── ingestion/
-│   │   └── ingest.py            # Repo cloning & parsing
-│   │   └── bootstrap.py         # Repo loading, vector db set up, neo4j db creation
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/
-│   ├── src/
-│   │   ├── App.js               # Main React component
-│   │   ├── index.js
-│   │   └── index.css
-│   ├── public/
-│   ├── package.json
-│   └── Dockerfile
-├── chrome-extension/            # Chrome extension
-│   ├── manifest.json            # Extension config
-│   ├── popup.html               # Extension UI
-│   ├── popup.js                 # Extension logic
-│   ├── popup.css                # GitHub-styled CSS
-│   ├── content.js               # GitHub page integration
-│   ├── icons/                   # Extension icons
-│   ├── README.md
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
----
-
-## Development
-
-### Local Development (without Docker)
-
-#### Backend
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate 
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start Neo4j separately
-docker run -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/test \
-  neo4j:5.10
-
-# Run backend
-uvicorn api.main:app --reload --port 8000
-```
-
-#### Frontend
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-----
 ## TODOs
 
+- [ ] Chat memory: Maintain context across multiple questions
+- [ ] Dynamic content loading: Automatically load page content when navigating so questions can be asked without specifying file names
 - [ ] Support for more languages (JavaScript, Java)
-- [ ] New feature: dynamically load in context the content of the page so as the user does not have to precise on which file he is asking questions
-- [ ] Chat history
-- [ ] Optional: Authentication & multi-user support
+- [ ] Chat history persistence
+- [ ] Authentication & multi-user support
 ---
 
 

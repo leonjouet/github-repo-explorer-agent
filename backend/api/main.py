@@ -21,8 +21,4 @@ app.include_router(graph.router, prefix="/graph", tags=["graph"])
 
 @app.get("/")
 async def root():
-    return {
-        "name": "GitHub RAG Agent API",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
+    return {"name": "GitHub RAG Agent API", "version": "1.0.0", "docs": "/docs"}

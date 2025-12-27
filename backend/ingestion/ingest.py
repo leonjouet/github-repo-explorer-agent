@@ -161,9 +161,7 @@ class RepoIngester:
 def main():
     """Main ingestion script."""
     # Example repos to ingest
-    repos = [
-        "https://github.com/karpathy/nanochat"
-    ]
+    repos = ["https://github.com/karpathy/nanochat"]
 
     ingester = RepoIngester()
     results = ingester.ingest_repos(repos)

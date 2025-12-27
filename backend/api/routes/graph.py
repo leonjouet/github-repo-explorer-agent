@@ -23,16 +23,15 @@ class CypherQuery(BaseModel):
 async def graph_schema():
     """Get graph schema summary."""
     return {
-        "nodes": ["Repository", "File", "Function", "Class",
-                  "Module", "Commit"],
+        "nodes": ["Repository", "File", "Function", "Class", "Module", "Commit"],
         "relationships": [
             "CONTAINS (Repository->File)",
             "DEFINES (File->Function)",
             "DEFINES (File->Class)",
             "IMPORTS (File->Module)",
             "CALLS (Function->Function)",
-            "HAS_COMMIT (Repository->Commit)"
-        ]
+            "HAS_COMMIT (Repository->Commit)",
+        ],
     }
 
 
