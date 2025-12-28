@@ -96,6 +96,77 @@
   color: #c9d1d9;
 }
 
+/* Context Section */
+#github-rag-panel .context-section {
+  background-color: #161b22;
+  border-bottom: 1px solid #30363d;
+}
+
+#github-rag-panel .context-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 36px;
+  gap: 8px;
+}
+
+#github-rag-panel .context-status {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #8b949e;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#github-rag-panel .context-status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+#github-rag-panel .context-status span span {
+  color: #c9d1d9;
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#github-rag-panel .context-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+#github-rag-panel .btn-context {
+  background-color: transparent;
+  color: #58a6ff;
+  border: 1px solid #58a6ff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+#github-rag-panel .btn-context:hover {
+  background-color: rgba(88, 166, 255, 0.1);
+  border-color: #79c0ff;
+  color: #79c0ff;
+}
+
+#github-rag-panel .btn-context:active {
+  background-color: rgba(88, 166, 255, 0.2);
+}
+
 #github-rag-panel .status-section {
   padding: 16px;
   background-color: #0d1117;
@@ -271,6 +342,110 @@
   color: #c9d1d9;
   align-self: flex-start;
   max-width: 85%;
+}
+
+/* Markdown formatting for assistant messages */
+#github-rag-panel .message-assistant p {
+  margin: 8px 0;
+}
+
+#github-rag-panel .message-assistant p:first-child {
+  margin-top: 0;
+}
+
+#github-rag-panel .message-assistant p:last-child {
+  margin-bottom: 0;
+}
+
+#github-rag-panel .message-assistant h1,
+#github-rag-panel .message-assistant h2,
+#github-rag-panel .message-assistant h3 {
+  color: #58a6ff;
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+#github-rag-panel .message-assistant h1:first-child,
+#github-rag-panel .message-assistant h2:first-child,
+#github-rag-panel .message-assistant h3:first-child {
+  margin-top: 0;
+}
+
+#github-rag-panel .message-assistant h1 {
+  font-size: 16px;
+  border-bottom: 1px solid #30363d;
+  padding-bottom: 6px;
+}
+
+#github-rag-panel .message-assistant h2 {
+  font-size: 14px;
+}
+
+#github-rag-panel .message-assistant h3 {
+  font-size: 13px;
+}
+
+#github-rag-panel .message-assistant code {
+  background-color: #0d1117;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+  font-size: 12px;
+  color: #f0883e;
+}
+
+#github-rag-panel .message-assistant pre {
+  background-color: #0d1117;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
+#github-rag-panel .message-assistant pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 12px;
+  color: #79c0ff;
+}
+
+#github-rag-panel .message-assistant ul,
+#github-rag-panel .message-assistant ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+#github-rag-panel .message-assistant li {
+  margin: 4px 0;
+}
+
+#github-rag-panel .message-assistant blockquote {
+  border-left: 3px solid #58a6ff;
+  padding-left: 12px;
+  margin: 12px 0;
+  color: #8b949e;
+}
+
+#github-rag-panel .message-assistant strong {
+  color: #f0f6fc;
+  font-weight: 600;
+}
+
+#github-rag-panel .message-assistant em {
+  color: #c9d1d9;
+  font-style: italic;
+}
+
+#github-rag-panel .message-assistant a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+#github-rag-panel .message-assistant a:hover {
+  text-decoration: underline;
 }
 
 #github-rag-panel .chat-input-container {

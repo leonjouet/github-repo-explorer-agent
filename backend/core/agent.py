@@ -363,28 +363,8 @@ class GitHubAgent:
             name="graph_query",
             description="Query the Neo4j graph database using natural language. This tool automatically generates and executes the Cypher query. Use this for structural analysis like counting entities, finding relationships, or analyzing code dependencies.",
             func=graph_query,
-            args_schema=SearchCodeArgs,  # Reuse since it just takes a query string
+            args_schema=SearchCodeArgs,
             return_direct=False,
-        )
-
-        dynamic_cypher_tool = Tool.from_function(
-            name="dynamic_cypher_query",
-            description="Execute a dynamic Cypher query against the Neo4j graph database. Use get_graph_schema tool first to understand the graph structure.",
-            func=dynamic_cypher_query,
-            args_schema=DynamicCypherQueryArgs,
-            return_direct=False,
-        )
-
-        get_schema_tool = StructuredTool.from_function(
-            name="get_graph_schema",
-            description="Get the Neo4j graph database schema including node types, properties, and relationships. Use this before dynamic_cypher_query.",
-            func=get_graph_schema,
-        )
-
-        list_repos_tool = StructuredTool.from_function(
-            name="list_graph_repositories",
-            description="List all repositories available in the Neo4j graph database with their statistics.",
-            func=list_graph_repositories,
         )
 
         file_explorer_tool = StructuredTool.from_function(
@@ -434,6 +414,7 @@ class GitHubAgent:
         question: str,
         chat_history: Optional[List[Dict[str, str]]] = None,
         system_prompt: Optional[str] = None,
+        context: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a question using the LangGraph agent.
@@ -442,19 +423,27 @@ class GitHubAgent:
             [{"role": "user"|"assistant", "content": "..."}]
 
         system_prompt: string to use as system-level instruction for the agent.
+
+        context: optional context string containing current file and/or selected code.
         """
         try:
             logger.info("=" * 100)
             logger.info(f"[AGENT QUERY] Started at {datetime.now().isoformat()}")
             logger.info(f"Question: {question}")
+            if context:
+                logger.info(f"Context: {context}")
             if chat_history:
                 logger.info(f"Chat history: {len(chat_history)} messages")
 
             messages: List[HumanMessage | AIMessage | Dict[str, str]] = []
 
-            # 1. Inject system prompt if provided
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
+            # 1. Build system prompt with context if provided
+            if system_prompt or context:
+                full_prompt = system_prompt or ""
+                if context:
+                    full_prompt += f"\n\nUSER CONTEXT:\n{context}"
+                if full_prompt:
+                    messages.append({"role": "system", "content": full_prompt})
 
             # 2. Add chat history
             if chat_history:

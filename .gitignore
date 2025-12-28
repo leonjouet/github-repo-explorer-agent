@@ -17,6 +17,9 @@ data/metadata/
 data/chroma/
 neo4j/data/
 
+# Logs
+logs/
+
 # IDEs
 .vscode/
 .idea/

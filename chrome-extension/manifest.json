@@ -5,31 +5,20 @@
   "description": "AI-powered code assistant for GitHub repositories",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "scripting",
+    "webRequest"
   ],
   "host_permissions": [
     "https://github.com/*",
     "http://localhost:8000/*"
   ],
-  "action": {
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
-  },
   "content_scripts": [
     {
       "matches": ["https://github.com/*/*"],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_end"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["popup.html", "popup.css", "popup.js"],
-      "matches": ["https://github.com/*"]
     }
   ],
   "icons": {
