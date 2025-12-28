@@ -5,13 +5,16 @@
   "description": "AI-powered code assistant for GitHub repositories",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "scripting",
+    "webRequest"
   ],
   "host_permissions": [
     "https://github.com/*",
     "http://localhost:8000/*"
   ],
   "action": {
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

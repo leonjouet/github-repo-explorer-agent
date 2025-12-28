@@ -1,11 +1,12 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import os
 
 from core.agent import GitHubAgent
 from core.retriever import VectorRetriever
 from core.neo4j_client import Neo4jClient
+from api.routes.context import _context_store
 
 router = APIRouter()
 _agent = None
@@ -31,13 +32,26 @@ async def query(req: QueryRequest):
     """Query repositories using the RAG agent."""
     agent = get_agent()
 
-    # Add repo context to question if specified
+    # Build question with context if available
     question = req.question
+    context_info = ""
+
     if req.repo:
         question = f"In the {req.repo} repository: {question}"
 
-    result = agent.query(question, req.chat_history or [])
+        # Get stored context for this repo
+        context_data = _context_store.get(req.repo)
+        if context_data:
+            # Build context string
+            if context_data.get("current_file"):
+                context_info += f"\n[Current File]: {context_data.get('current_file')}"
+            if context_data.get("selected_code"):
+                context_info += (
+                    f"\n[Selected Code]:\n{context_data.get('selected_code')}"
+                )
 
+    # Run agent with optional context
+    result = agent.query(question, req.chat_history or [], context=context_info)
     return {
         "question": req.question,
         "answer": result["answer"],

@@ -434,6 +434,7 @@ class GitHubAgent:
         question: str,
         chat_history: Optional[List[Dict[str, str]]] = None,
         system_prompt: Optional[str] = None,
+        context: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a question using the LangGraph agent.
@@ -442,19 +443,27 @@ class GitHubAgent:
             [{"role": "user"|"assistant", "content": "..."}]
 
         system_prompt: string to use as system-level instruction for the agent.
+        
+        context: optional context string containing current file and/or selected code.
         """
         try:
             logger.info("=" * 100)
             logger.info(f"[AGENT QUERY] Started at {datetime.now().isoformat()}")
             logger.info(f"Question: {question}")
+            if context:
+                logger.info(f"Context: {context}")
             if chat_history:
                 logger.info(f"Chat history: {len(chat_history)} messages")
 
             messages: List[HumanMessage | AIMessage | Dict[str, str]] = []
 
-            # 1. Inject system prompt if provided
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
+            # 1. Build system prompt with context if provided
+            if system_prompt or context:
+                full_prompt = system_prompt or ""
+                if context:
+                    full_prompt += f"\n\nUSER CONTEXT:\n{context}"
+                if full_prompt:
+                    messages.append({"role": "system", "content": full_prompt})
 
             # 2. Add chat history
             if chat_history:

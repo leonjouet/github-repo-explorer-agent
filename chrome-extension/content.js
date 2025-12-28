@@ -6,8 +6,22 @@ const API_BASE_URL = 'http://localhost:8000';
 // State
 let currentRepoUrl = null;
 let currentRepoName = null;
+let currentFilePath = null;
+let selectedCode = null;
 let isLoaded = false;
 let isPanelVisible = false;
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'getSelection') {
+    // Capture current selection at the moment requested
+    const selection = window.getSelection().toString().trim();
+    sendResponse({ 
+      selectedCode: selection && selection.length > 0 ? selection : null,
+      currentFile: currentFilePath
+    });
+  }
+});
 
 // Create floating button and panel
 function createFloatingUI() {
@@ -26,6 +40,20 @@ function createFloatingUI() {
       <h1>GitHub RAG Agent</h1>
       <div id="repo-info" class="repo-info hidden">
         <span id="repo-name"></span>
+      </div>
+    </div>
+
+    <!-- Context Section -->
+    <div class="context-section">
+      <div class="context-display">
+        <div id="context-status" class="context-status">
+          <span id="current-file-display" class="hidden">📄 <span id="current-file-name"></span></span>
+          <span id="selected-code-display" class="hidden">✂️ <span id="selected-code-preview"></span></span>
+        </div>
+        <div class="context-actions">
+          <button id="add-to-context-btn" class="btn-context">Add</button>
+          <button id="clear-context-btn" class="btn-context">Clear</button>
+        </div>
       </div>
     </div>
 
@@ -89,6 +117,96 @@ function togglePanel() {
   }
 }
 
+// Detect the current file path from GitHub URL
+function detectCurrentFile() {
+  // Match: github.com/owner/repo/blob/branch/path/to/file.py
+  const match = window.location.href.match(/\/blob\/[^\/]+\/(.+?)(?:\?|#|$)/);
+  
+  if (match) {
+    currentFilePath = match[1];
+    updateFileDisplay();
+    syncContextWithBackend();
+    return currentFilePath;
+  }
+  
+  currentFilePath = null;
+  hideFileDisplay();
+  return null;
+}
+
+function updateFileDisplay() {
+  const fileDisplay = document.getElementById('current-file-display');
+  const fileName = document.getElementById('current-file-name');
+  const contextInfo = document.getElementById('context-info');
+  
+  if (currentFilePath) {
+    fileName.textContent = currentFilePath;
+    fileDisplay?.classList.remove('hidden');
+    contextInfo?.classList.remove('hidden');
+  } else {
+    hideFileDisplay();
+  }
+}
+
+function hideFileDisplay() {
+  const fileDisplay = document.getElementById('current-file-display');
+  fileDisplay?.classList.add('hidden');
+}
+
+// Listen for text selection and capture code
+function setupSelectionListener() {
+  document.addEventListener('mouseup', () => {
+    const selection = window.getSelection().toString().trim();
+    
+    if (selection && selection.length > 0) {
+      selectedCode = selection;
+      updateSelectionDisplay();
+      syncContextWithBackend();
+      // Save to storage so popup can access it
+      chrome.storage.session.set({ selectedCode: selection });
+    }
+  });
+}
+
+function updateSelectionDisplay() {
+  const selectionDisplay = document.getElementById('selected-code-display');
+  const contextInfo = document.getElementById('context-info');
+  
+  if (selectedCode) {
+    selectionDisplay?.classList.remove('hidden');
+    contextInfo?.classList.remove('hidden');
+  }
+}
+
+function hideSelectionDisplay() {
+  const selectionDisplay = document.getElementById('selected-code-display');
+  selectionDisplay?.classList.add('hidden');
+}
+
+// Sync current context to backend
+async function syncContextWithBackend() {
+  if (!currentRepoName || (!currentFilePath && !selectedCode)) {
+    return;
+  }
+  
+  try {
+    await fetch(`${API_BASE_URL}/context/set`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repo: currentRepoName,
+        context: {
+          current_file: currentFilePath,
+          selected_code: selectedCode,
+          selected_code_file: currentFilePath
+        }
+      })
+    });
+  } catch (error) {
+    console.error('Error syncing context:', error);
+  }
+}
+
 // Detect the current repository
 function detectRepository() {
   const match = window.location.href.match(/https:\/\/github\.com\/([^\/]+)\/([^\/]+)/);
@@ -115,6 +233,9 @@ async function detectGitHubRepo() {
   currentRepoUrl = repo.url;
   currentRepoName = repo.name;
   
+  // Detect current file if viewing code
+  detectCurrentFile();
+  
   // Check if repo is already loaded
   const loaded = await checkIfRepoLoaded(currentRepoName);
   
@@ -140,10 +261,14 @@ function initializePanel() {
   const loadRepoBtn = document.getElementById('load-repo-btn');
   const sendBtn = document.getElementById('send-btn');
   const chatInput = document.getElementById('chat-input');
+  const addToContextBtn = document.getElementById('add-to-context-btn');
+  const clearContextBtn = document.getElementById('clear-context-btn');
   
   // Setup event listeners
   loadRepoBtn?.addEventListener('click', loadRepository);
   sendBtn?.addEventListener('click', sendMessage);
+  addToContextBtn?.addEventListener('click', addToContext);
+  clearContextBtn?.addEventListener('click', clearContext);
   
   chatInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -151,6 +276,9 @@ function initializePanel() {
       sendMessage();
     }
   });
+  
+  // Setup selection listener
+  setupSelectionListener();
   
   // Initial detection
   detectGitHubRepo();
@@ -297,11 +425,104 @@ async function sendMessage() {
   }
 }
 
+// Parse markdown to HTML
+function parseMarkdown(text) {
+  if (!text) return '';
+  
+  // Use marked library if available
+  if (typeof marked !== 'undefined') {
+    try {
+      marked.setOptions({
+        breaks: true,
+        gfm: true
+      });
+      return marked.parse(text);
+    } catch (e) {
+      console.error('Error parsing markdown with marked:', e);
+      return fallbackMarkdownParser(text);
+    }
+  }
+  
+  return fallbackMarkdownParser(text);
+}
+
+// Fallback markdown parser
+function fallbackMarkdownParser(text) {
+  let html = text;
+  
+  // Ensure proper line breaks before headers if missing
+  html = html.replace(/([^\n])(#{1,3} )/g, '$1\n$2');
+  
+  // Headers (must be before other replacements)
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  
+  // Code blocks (triple backticks)
+  html = html.replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+  
+  // Inline code (single backticks)
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
+  // Links (before bold/italic)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  
+  // Italic (avoid matching already processed bold)
+  html = html.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+  
+  // Unordered lists (- or *) - must be on own line
+  html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+  
+  // Numbered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  
+  // Group consecutive <li> into <ul>
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, function(match) {
+    return '<ul>' + match + '</ul>';
+  });
+  
+  // Paragraph wrapping (avoid wrapping block elements)
+  html = html.split('\n').map(line => {
+    line = line.trim();
+    if (line && !line.match(/^<(h[1-6]|pre|ul|ol|li|code|\/)/)) {
+      return '<p>' + line + '</p>';
+    }
+    return line;
+  }).join('\n');
+  
+  // Clean up - remove empty paragraphs and fix nesting
+  html = html.replace(/<p><\/p>/g, '');
+  html = html.replace(/<p>(<h[1-6]>)/g, '$1');
+  html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<pre>)/g, '$1');
+  html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<[ou]l>)/g, '$1');
+  html = html.replace(/(<\/[ou]l>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<li>)/g, '$1');
+  html = html.replace(/(<\/li>)<\/p>/g, '$1');
+  
+  return html;
+}
+
 function addMessageToChat(text, role) {
   const chatMessages = document.getElementById('chat-messages');
   const messageDiv = document.createElement('div');
   messageDiv.className = `message-${role}`;
-  messageDiv.textContent = text;
+  
+  if (role === 'assistant') {
+    // Parse markdown for assistant messages
+    const html = parseMarkdown(text);
+    messageDiv.innerHTML = html;
+  } else {
+    // Keep user messages as plain text
+    messageDiv.textContent = text;
+  }
+  
   chatMessages?.appendChild(messageDiv);
   if (chatMessages) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -329,6 +550,60 @@ function removeLoadingMessage(id) {
   }
 }
 
+// Add selected code to context
+function addToContext() {
+  const selection = window.getSelection().toString().trim();
+  
+  if (selection) {
+    selectedCode = selection;
+    updateContextDisplay();
+    showButtonFeedback('add-to-context-btn', 'Added!');
+  } else {
+    showButtonFeedback('add-to-context-btn', 'No selection');
+  }
+}
+
+// Clear context (only clears selected code, not current file)
+function clearContext() {
+  selectedCode = null;
+  updateContextDisplay();
+  showButtonFeedback('clear-context-btn', 'Cleared!');
+}
+
+// Update context display
+function updateContextDisplay() {
+  const selectedCodeDisplay = document.getElementById('selected-code-display');
+  const currentFileDisplay = document.getElementById('current-file-display');
+  const previewElement = document.getElementById('selected-code-preview');
+  
+  // Update file display
+  if (currentFilePath) {
+    document.getElementById('current-file-name').textContent = currentFilePath;
+    currentFileDisplay?.classList.remove('hidden');
+  } else {
+    currentFileDisplay?.classList.add('hidden');
+  }
+  
+  // Update selection display
+  if (selectedCode) {
+    const preview = selectedCode.substring(0, 40) + (selectedCode.length > 40 ? '...' : '');
+    if (previewElement) previewElement.textContent = preview;
+    selectedCodeDisplay?.classList.remove('hidden');
+  } else {
+    selectedCodeDisplay?.classList.add('hidden');
+  }
+}
+
+// Show button feedback
+function showButtonFeedback(buttonId, message, duration = 1500) {
+  const btn = document.getElementById(buttonId);
+  if (!btn) return;
+  
+  const originalText = btn.textContent;
+  btn.textContent = message;
+  setTimeout(() => btn.textContent = originalText, duration);
+}
+
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', createFloatingUI);
@@ -342,9 +617,9 @@ new MutationObserver(() => {
   const url = location.href;
   if (url !== lastUrl) {
     lastUrl = url;
-    const repo = detectRepository();
-    if (repo && isPanelVisible) {
-      detectGitHubRepo();
-    }
+    // Re-detect repo and file on navigation
+    detectGitHubRepo();
+    // Detect current file if viewing code page
+    detectCurrentFile();
   }
 }).observe(document, { subtree: true, childList: true });
