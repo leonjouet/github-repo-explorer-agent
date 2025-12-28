@@ -32,10 +32,3 @@ services:
     volumes:
       - ./data:/app/data
       - ./backend:/app
-  frontend:
-    build: ./frontend
-    container_name: github-rag-frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend

@@ -376,6 +376,33 @@ function parseMarkdown(text) {
 function fallbackMarkdownParser(text) {
   let html = text;
   
+  // First, protect code blocks from further processing
+  const codeBlocks = [];
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, language, code) => {
+    const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+    // Escape HTML in code
+    const escapedCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    codeBlocks.push(`<pre><code>${escapedCode}</code></pre>`);
+    return placeholder;
+  });
+  
+  // Protect inline code
+  const inlineCode = [];
+  html = html.replace(/`([^`]+)`/g, (match, code) => {
+    const placeholder = `__INLINE_CODE_${inlineCode.length}__`;
+    const escapedCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    inlineCode.push(`<code>${escapedCode}</code>`);
+    return placeholder;
+  });
+  
   // Ensure proper line breaks before headers if missing
   html = html.replace(/([^\n])(#{1,3} )/g, '$1\n$2');
   
@@ -383,12 +410,6 @@ function fallbackMarkdownParser(text) {
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-  
-  // Code blocks (triple backticks)
-  html = html.replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-  
-  // Inline code (single backticks)
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
   
   // Links (before bold/italic)
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
@@ -413,10 +434,10 @@ function fallbackMarkdownParser(text) {
     return '<ul>' + match + '</ul>';
   });
   
-  // Paragraph wrapping (avoid wrapping block elements)
+  // Paragraph wrapping (avoid wrapping block elements and placeholders)
   html = html.split('\n').map(line => {
     line = line.trim();
-    if (line && !line.match(/^<(h[1-6]|pre|ul|ol|li|code|\/)/)) {
+    if (line && !line.match(/^<(h[1-6]|pre|ul|ol|li|code|\/)/) && !line.match(/^__CODE_BLOCK_|^__INLINE_CODE_/)) {
       return '<p>' + line + '</p>';
     }
     return line;
@@ -432,6 +453,16 @@ function fallbackMarkdownParser(text) {
   html = html.replace(/(<\/[ou]l>)<\/p>/g, '$1');
   html = html.replace(/<p>(<li>)/g, '$1');
   html = html.replace(/(<\/li>)<\/p>/g, '$1');
+  
+  // Restore code blocks
+  codeBlocks.forEach((block, i) => {
+    html = html.replace(`__CODE_BLOCK_${i}__`, block);
+  });
+  
+  // Restore inline code
+  inlineCode.forEach((code, i) => {
+    html = html.replace(`__INLINE_CODE_${i}__`, code);
+  });
   
   return html;
 }

@@ -381,6 +381,7 @@ body {
   border: 1px solid #30363d;
   margin: 8px 0;
   overflow-x: auto;
+  max-width: 100%;
 }
 
 .message-assistant pre code {
@@ -389,6 +390,10 @@ body {
   border-radius: 0;
   font-size: 12px;
   color: #79c0ff;
+  display: block;
+  white-space: pre;
+  line-height: 1.5;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
 }
 
 .message-assistant ul,
