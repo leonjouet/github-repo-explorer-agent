@@ -95,15 +95,12 @@ See [chrome-extension/README.md](chrome-extension/README.md) for detailed instru
    ```
    This starts:
    - Backend API: http://localhost:8000
-   - Frontend: http://localhost:3000
    - Neo4j: http://localhost:7474
 
 2. **Manually load repositories** (optional):
    ```bash
    docker exec -it [backend_container_ID] python ingestion/bootstrap.py https://github.com/karpathy/nanochat
    ```
-
-3. **Open http://localhost:3000 and ask questions**
 
 ### Todos
 - [ ] Chat memory: Maintain context across multiple question
