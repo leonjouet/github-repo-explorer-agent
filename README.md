@@ -39,16 +39,8 @@ github-rag-agent/
 │   ├── data/                   # Vector store
 │   ├── logs/                   # Application logs
 │   └── requirements.txt
-├── frontend/                   # React web interface
-│   ├── src/
-│   │   ├── App.js
-│   │   └── index.js
-│   └── package.json
 ├── chrome-extension/           # Chrome extension
 │   ├── manifest.json           # Extension config
-│   ├── popup.html              # Toolbar popup UI
-│   ├── popup.js                # Popup logic
-│   ├── popup.css               # Popup styles
 │   ├── content.js              # Floating panel (injected)
 │   ├── content.css             # Panel styles
 │   └── icons/                  # Extension icons

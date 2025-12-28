@@ -30,19 +30,15 @@ class QueryRequest(BaseModel):
 @router.post("/")
 async def query(req: QueryRequest):
     """Query repositories using the RAG agent."""
-    agent = get_agent()
 
-    # Build question with context if available
+    agent = get_agent()
     question = req.question
     context_info = ""
 
     if req.repo:
         question = f"In the {req.repo} repository: {question}"
-
-        # Get stored context for this repo
         context_data = _context_store.get(req.repo)
         if context_data:
-            # Build context string
             if context_data.get("current_file"):
                 context_info += f"\n[Current File]: {context_data.get('current_file')}"
             if context_data.get("selected_code"):
@@ -50,11 +46,11 @@ async def query(req: QueryRequest):
                     f"\n[Selected Code]:\n{context_data.get('selected_code')}"
                 )
 
-    # Run agent with optional context
     result = agent.query(question, req.chat_history or [], context=context_info)
     return {
         "question": req.question,
         "answer": result["answer"],
         "success": result["success"],
         "repo": req.repo,
+        "context_used": context_info,
     }
