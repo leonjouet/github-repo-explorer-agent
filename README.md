@@ -1,4 +1,4 @@
-# GitHub repo explorer agent
+# GREA - GitHub Repository Explorer Agent
 
 An AI-powered system for exploring and asking questions about GitHub repositories. Ask natural language questions and get answers based on the repository's code, structure, and relationships.
 
@@ -103,6 +103,6 @@ See [chrome-extension/README.md](chrome-extension/README.md) for detailed instru
    ```
 
 ### Todos
-- [ ] Chat memory: Maintain context across multiple question
-- [ ] Support for more languages (JavaScript, Java)
+- [ ] Chat memory: Maintain context across multiple questions
+- [ ] Support for more languages in the knowledge graph (JavaScript, Java, Typescript)
 ---
