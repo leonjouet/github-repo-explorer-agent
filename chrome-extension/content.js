@@ -10,7 +10,7 @@ let currentFilePath = null;
 let selectedCode = null;
 let isLoaded = false;
 let isPanelVisible = false;
-
+let chatHistory = [];
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getSelection') {
@@ -331,6 +331,7 @@ function showChatInterface() {
 
 async function loadRepository() {
   if (!currentRepoUrl) return;
+  chatHistory = [];
   
   const loadRepoBtn = document.getElementById('load-repo-btn');
   const loadingIndicator = document.getElementById('loading-indicator');
@@ -390,6 +391,8 @@ async function sendMessage() {
   
   sendBtn.disabled = true;
   chatInput.disabled = true;
+
+  chatHistory.push({role: 'user', content: message});
   
   const loadingId = addLoadingMessage();
   
@@ -401,7 +404,8 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         question: message,
-        repo: currentRepoName
+        repo: currentRepoName,
+        chat_history: chatHistory,
       })
     });
     
@@ -411,12 +415,18 @@ async function sendMessage() {
     
     const result = await response.json();
     
+    chatHistory.push({role: 'assistant', content: result.answer || result.response || ''});
+     if (chatHistory.length > 10) {
+       chatHistory = chatHistory.slice(-10);
+    }
+
     removeLoadingMessage(loadingId);
     addMessageToChat(result.answer || result.response || 'No response received', 'assistant');
     
   } catch (error) {
     console.error('Error querying agent:', error);
     removeLoadingMessage(loadingId);
+    chatHistory.pop(); // remove last message that returned an error
     addMessageToChat(`Error: ${error.message}`, 'assistant');
   } finally {
     sendBtn.disabled = false;
