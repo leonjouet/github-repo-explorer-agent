@@ -15,7 +15,6 @@ A Chrome extension that brings AI-powered code assistance directly to GitHub rep
 
 1. Make sure your GitHub RAG Agent backend is running:
    ```bash
-   cd github-rag-agent
    ./start.sh
    ```
 
@@ -58,13 +57,6 @@ Type your question in the chat input box and the agent will analyze the reposito
    - Function and class definitions
    - Documentation and comments
    - File relationships
+   - Code files
+   - Dynamic context retrieval
 
-### Example Questions
-- "What does the main function do?"
-- "How is the database connection handled?"
-- "Explain the architecture of this project"
-- "Where is the authentication logic implemented?"
-
-## Configuration
-The extension communicates with the backend API at `http://localhost:8000` by default.
-To change the API URL, edit `popup.js`:

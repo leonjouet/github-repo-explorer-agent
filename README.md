@@ -8,8 +8,7 @@ An AI-powered system for exploring and asking questions about GitHub repositorie
 
 - **Semantic Code Search**: Find relevant code snippets using vector embeddings
 - **Code Relationships**: Understand how classes, functions, and modules relate to each other with a knowledge graph database
-- **Dynamic Context Retrieval**: Automatically detects which file you're viewing on GitHub, code you select and uses it as context for your questions
-- **Code Selection Context**: Select any code snippet on GitHub and add it to the conversation context with one click
+- **Dynamic Context Retrieval**: Automatically detects which file you're viewing on GitHub, code you select and uses it as context for your questions (Select any code snippet on GitHub and add it to the conversation context with one click)
 - **Chat Interface**: Ask questions in natural language and get contextual answers with ChatGPT-style markdown formatting
 - **Chrome Extension**: Use it directly while browsing GitHub repositories - floating panel or toolbar popup
 - **Docker Support**: One-command deployment
@@ -67,8 +66,13 @@ github-rag-agent/
    ```bash
    cp .env.example .env
    # Edit .env and add your OPENAI_API_KEY
+   # Start backend and neo4j containers
    ./start.sh
    ```
+
+   This starts:
+   - Backend API: http://localhost:8000
+   - Neo4j: http://localhost:7474
 
 2. **Load the extension in Chrome**:
    - Open Chrome and go to `chrome://extensions/`
@@ -87,24 +91,8 @@ github-rag-agent/
 
 See [chrome-extension/README.md](chrome-extension/README.md) for detailed instructions.
 
-### Web Interface (Alternative)
-
-1. **Start the stack**:
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your OPENAI_API_KEY
-   ./start.sh
-   ```
-   This starts:
-   - Backend API: http://localhost:8000
-   - Neo4j: http://localhost:7474
-
-2. **Manually load repositories** (optional):
-   ```bash
-   docker exec -it [backend_container_ID] python ingestion/bootstrap.py https://github.com/karpathy/nanochat
-   ```
-
 ### Todos
-- [ ] Chat memory: Maintain context across multiple questions
 - [ ] Support for more languages in the knowledge graph and RAG (JavaScript, Java, Typescript)
+- [ ] Improve chat UI
+- [ ] Add clickable links to code files in the chat
 ---
