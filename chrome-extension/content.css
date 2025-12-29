@@ -402,6 +402,8 @@
   border: 1px solid #30363d;
   margin: 12px 0;
   overflow-x: auto;
+  white-space: pre;
+  line-height: 1.5;
 }
 
 #github-rag-panel .message-assistant pre code {
@@ -409,7 +411,11 @@
   padding: 0;
   border-radius: 0;
   font-size: 12px;
-  color: #79c0ff;
+  color: #c9d1d9;
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.5;
 }
 
 #github-rag-panel .message-assistant ul,

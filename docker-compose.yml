@@ -17,7 +17,7 @@ services:
       start_period: 30s
   backend:
     build: ./backend
-    container_name: github-rag-backend
+    container_name: github-explorer-agent-backend
     ports:
       - "8000:8000"
     environment:
