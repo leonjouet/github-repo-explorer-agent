@@ -2,8 +2,7 @@
 
 An AI-powered system for exploring and asking questions about GitHub repositories. Ask natural language questions and get answers based on the repository's code, structure, and relationships.
 
-<video src="https://github.com/leonjouet/github-repo-explorer-agent/releases/download/demo-video-gh-explorer-agent/demo-video-gh-explorer.mp4" width="320" height="240" controls></video>
-
+<video src="https://github.com/user-attachments/assets/3e653219-3889-4812-9cb7-d454c8352194" width="320" height="240" controls></video>
 
 ## Features
 
