@@ -104,5 +104,5 @@ See [chrome-extension/README.md](chrome-extension/README.md) for detailed instru
 
 ### Todos
 - [ ] Chat memory: Maintain context across multiple questions
-- [ ] Support for more languages in the knowledge graph (JavaScript, Java, Typescript)
+- [ ] Support for more languages in the knowledge graph and RAG (JavaScript, Java, Typescript)
 ---
